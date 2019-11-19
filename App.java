@@ -1,3 +1,4 @@
+import com.fazecast.jSerialComm.SerialPort;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -10,23 +11,19 @@ import java.net.URL;
  */
 public class App
 {
-    public static void main(String[] args)
+    public static void main(String[] args) throws IOException
     {
-//        System.out.println(System.getProperty("java.library.path"));
-
-        Communicator main = new Communicator();
-        main.initialize();
-        Thread t = new Thread() {
-            public void run() {
-                //the following line will keep this app alive for 1000 seconds,
-                //waiting for events to occur and responding to them (printing incoming messages to console).
-                try {Thread.sleep(1000000);} catch (InterruptedException ie) {}
+        SerialPort comPort = SerialPort.getCommPort("/dev/tty.usbserial-A9Z2T81O");
+        comPort.setBaudRate(9600);
+        comPort.openPort();
+        comPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, 0, 0);
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(comPort.getInputStream()))) {
+            while (true)
+            {
+                System.out.println(in.readLine());
             }
-        };
-        t.start();
-        System.out.println("Started");
-
-
+        } catch (Exception e) { e.printStackTrace(); }
+        comPort.closePort();
 
 //        light();
     }
