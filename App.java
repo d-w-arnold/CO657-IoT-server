@@ -1,3 +1,5 @@
+import com.fazecast.jSerialComm.SerialPort;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -5,6 +7,8 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.sql.*;
 import java.util.HashMap;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * IoT Server
@@ -14,53 +18,57 @@ import java.util.HashMap;
  */
 public class App
 {
+    final private static int baudRate = 9600;
+    final private static String commPortPath = "/dev/tty.usbserial-A9Z2T81O";
     final private static String lightIPAddress = "10.150.46.108";
     final private static String apiKey = "70617373776f7264";
     private static HashMap<String, String> bleDeviceNames = new HashMap<>();
-    private static HashMap<String, String> living_roomMap = new HashMap<>();
-    private static HashMap<String, String> bedroomMap = new HashMap<>();
-    private static HashMap<String, String> kitchenMap = new HashMap<>();
+    private static HashMap<String, Light> living_roomMap = new HashMap<>();
+    private static HashMap<String, Light> bedroomMap = new HashMap<>();
+    private static HashMap<String, Light> kitchenMap = new HashMap<>();
 
     public static void main(String[] args) throws SQLException, IOException
     {
-        System.out.println(getLight());
-        System.out.println(setLight(Light.TOGGLE));
+        // Serial Port Setup
+        SerialPort commPort = SerialPort.getCommPort(commPortPath);
+        commPort.setBaudRate(baudRate);
+        commPort.openPort();
+        commPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, 0, 0);
 
-//        // Serial Port Setup
-//        SerialPort commPort = SerialPort.getCommPort("/dev/tty.usbserial-A9Z2T81O");
-//        commPort.setBaudRate(9600);
-//        commPort.openPort();
-//        commPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, 0, 0);
-//
-//        // JDBC connection to my MySQL database
-//        Connection conn = connectToDatabase();
-//
-//        // SELECT * FROM iot
-//        assert conn != null;
-//        populateMaps(conn);
-//
-//        // Send all BLE Device MAC addresses and BLE Device Names
-//        Set<String> bleDevices = bleDeviceNames.keySet();
-//        for (String bleDevice : bleDevices) {
-//            String bleDeviceInfoToSend = bleDevice + "+" + bleDeviceNames.get(bleDevice) + "*";
-//            commPort.writeBytes(bleDeviceInfoToSend.getBytes(), bleDeviceInfoToSend.length());
-//        }
-//
-//        // Reading from Serial Port
-//        try (BufferedReader in = new BufferedReader(new InputStreamReader(commPort.getInputStream()))) {
-//            while (true) {
-//                System.out.println(in.readLine());
-//
-//            }
-//        } catch (Exception e) {
-//            System.err.println("** No Serial Input **");
-//        }
-//
-//        // Close JDBC connection to my MySQL database
-//        conn.close();
-//
-//        // Close Serial Port
-//        commPort.closePort();
+        // JDBC connection to my MySQL database
+        Connection conn = connectToDatabase();
+
+        // SELECT * FROM iot
+        assert conn != null;
+        populateMaps(conn);
+
+        // Send all BLE Device MAC addresses and BLE Device Names
+        Set<String> bleDevices = bleDeviceNames.keySet();
+        for (String bleDevice : bleDevices) {
+            String bleDeviceInfoToSend = bleDevice + "+" + bleDeviceNames.get(bleDevice) + "*";
+            commPort.writeBytes(bleDeviceInfoToSend.getBytes(), bleDeviceInfoToSend.length());
+        }
+
+        // Reading from Serial Port
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(commPort.getInputStream()))) {
+            Light currentState = getLight();
+            while (true) {
+                String bleMACAddress = in.readLine();
+                if (Objects.equals(currentState, Light.OFF)) {
+                    if (!Objects.equals(currentState, living_roomMap.get(bleMACAddress))) {
+                        currentState = setLight(Light.TOGGLE);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("** No Serial Input **");
+        }
+
+        // Close JDBC connection to my MySQL database
+        conn.close();
+
+        // Close Serial Port
+        commPort.closePort();
     }
 
     private static Connection connectToDatabase()
@@ -82,9 +90,9 @@ public class App
         while (rs.next()) {
             String bleMacAddress = rs.getString("mac");
             bleDeviceNames.put(bleMacAddress, rs.getString("name"));
-            living_roomMap.put(bleMacAddress, rs.getString("living_room"));
-            bedroomMap.put(bleMacAddress, rs.getString("bedroom"));
-            kitchenMap.put(bleMacAddress, rs.getString("kitchen"));
+            living_roomMap.put(bleMacAddress, Light.values()[rs.getInt("living_room")]);
+            bedroomMap.put(bleMacAddress, Light.values()[rs.getInt("bedroom")]);
+            kitchenMap.put(bleMacAddress, Light.values()[rs.getInt("kitchen")]);
         }
         rs.close();
         stmt.close();
