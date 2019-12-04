@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.sql.*;
 import java.util.HashMap;
+import java.util.Set;
 
 /**
  * IoT Server
@@ -32,6 +33,13 @@ public class App
         // SELECT * FROM iot
         assert conn != null;
         populateMaps(conn);
+
+        // Send all BLE Device MAC addresses and BLE Device Names
+        Set<String> bleDevices = bleDeviceNames.keySet();
+        for (String bleDevice : bleDevices) {
+            String bleDeviceInfoToSend = bleDevice + "+" + bleDeviceNames.get(bleDevice) + "*";
+            commPort.writeBytes(bleDeviceInfoToSend.getBytes(), bleDeviceInfoToSend.length());
+        }
 
         // Reading from Serial Port
         try (BufferedReader in = new BufferedReader(new InputStreamReader(commPort.getInputStream()))) {
