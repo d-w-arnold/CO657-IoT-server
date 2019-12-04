@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.URLConnection;
 import java.sql.*;
 import java.util.HashMap;
 
@@ -22,8 +23,8 @@ public class App
 
     public static void main(String[] args) throws SQLException, IOException
     {
-//        System.out.println(getLight());
-        setLight(2);
+        System.out.println(getLight());
+        System.out.println(setLight(Light.TOGGLE));
 
 //        // Serial Port Setup
 //        SerialPort commPort = SerialPort.getCommPort("/dev/tty.usbserial-A9Z2T81O");
@@ -89,19 +90,16 @@ public class App
         stmt.close();
     }
 
-    private static int getLight() throws IOException
+    private static Light getLight() throws IOException
     {
-        // curl -H "Accept: application/json" http://10.150.46.108/api/relay/0?apikey=70617373776f7264
-        String url = "http://"+ lightIPAddress + "/api/relay/0?apikey="+ apiKey;
-        String[] command = {"curl", "-H", "Accept: application/json", url};
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        Process process = processBuilder.start();
+        URL url = new URL("http://10.150.46.108/api/relay/0?apikey=70617373776f7264");
+        URLConnection yc = url.openConnection();
         int res = -1;
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(yc.getInputStream()))) {
             String line;
             while ((line = in.readLine()) != null) {
                 try {
-                    res = Integer.parseInt(line); // Sort this out
+                    res = Integer.parseInt(line);
                 } catch (NumberFormatException ex) {
                     ex.printStackTrace();
                 }
@@ -109,15 +107,14 @@ public class App
         } catch (IOException ex) {
             ex.printStackTrace();
         }
-        process.destroy();
-        return res;
+        return res < 0 ? null : Light.values()[res];
     }
 
-    private static int setLight(int value) throws IOException
+    private static Light setLight(Light value) throws IOException
     {
         // curl -X PUT -H "Accept: application/json" http://10.150.46.108/api/relay/0 --data "apikey=70617373776f7264&value=2"
-        String parameters = "apikey="+ apiKey + "&" + "value=" + value;
-        String url = "http://"+ lightIPAddress + "/api/relay/0";
+        String parameters = "apikey=" + apiKey + "&" + "value=" + value.ordinal();
+        String url = "http://" + lightIPAddress + "/api/relay/0";
         String[] command = {"curl", "-X", "PUT", "H", "Accept: application/json", url, "--data", parameters};
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         Process process = processBuilder.start();
@@ -135,6 +132,9 @@ public class App
             ex.printStackTrace();
         }
         process.destroy();
-        return res;
+        return res < 0 ? null : Light.values()[res];
     }
+
+    public enum Light
+    {OFF, ON, TOGGLE}
 }
