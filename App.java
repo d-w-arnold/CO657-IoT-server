@@ -1,4 +1,5 @@
 import com.fazecast.jSerialComm.SerialPort;
+import com.fazecast.jSerialComm.SerialPortTimeoutException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.sql.*;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Set;
@@ -19,15 +21,16 @@ import java.util.Set;
  */
 public class App
 {
+    final private static int timeout = 3000; // Serial Comm Port Timeout in milliseconds
     final private static int baudRate = 9600;
     final private static String commPortPath = "/dev/tty.usbserial-A9Z2T81O";
     final private static String lightIPAddress = "10.150.46.108";
     final private static String apiKey = "70617373776f7264";
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("(dd/MM/yyyy) HH:mm:ss");
     private static HashMap<String, String> bleDeviceNames = new HashMap<>();
     private static HashMap<String, Light> living_roomMap = new HashMap<>();
     private static HashMap<String, Light> bedroomMap = new HashMap<>();
     private static HashMap<String, Light> kitchenMap = new HashMap<>();
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("(dd/MM/yyyy) HH:mm:ss");
 
     public static void main(String[] args) throws SQLException, IOException
     {
@@ -35,7 +38,7 @@ public class App
         SerialPort commPort = SerialPort.getCommPort(commPortPath);
         commPort.setBaudRate(baudRate);
         commPort.openPort();
-        commPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, 0, 0);
+        commPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, timeout, 0);
         System.out.println("** Serial Comm Port Setup Complete **");
 
         // JDBC connection to my MySQL database
@@ -59,14 +62,21 @@ public class App
         try (BufferedReader in = new BufferedReader(new InputStreamReader(commPort.getInputStream()))) {
             Light currentState = getLight();
             while (true) {
-                String bleMACAddress = in.readLine();
-                System.out.println("\nIoT Device has detected the BLE Device: " + bleMACAddress);
-                String timestamp = sdf.format(new Timestamp(System.currentTimeMillis()));
-                System.out.println(timestamp + " - Welcome home! " + bleDeviceNames.get(bleMACAddress));
-                if (Objects.equals(currentState, Light.OFF)) {
-                    if (!Objects.equals(currentState, living_roomMap.get(bleMACAddress))) {
-                        currentState = setLight(Light.TOGGLE);
+                try {
+                    String bleMACAddress = in.readLine();
+                    System.out.println("\nIoT Device has detected the BLE Device: " + bleMACAddress);
+                    String timestamp = sdf.format(new Timestamp(System.currentTimeMillis()));
+                    System.out.println(timestamp + " - Welcome home! " + bleDeviceNames.get(bleMACAddress));
+                    if (Objects.equals(currentState, Light.OFF)) {
+                        if (!Objects.equals(currentState, living_roomMap.get(bleMACAddress))) {
+                            currentState = setLight(Light.TOGGLE);
+                        }
                     }
+                } catch (SerialPortTimeoutException se) {
+                }
+                if (requireUpdatesFromDatabase(conn)) {
+                    populateMaps(conn);
+                    System.out.println("** Updated BLE Device Info retrieved from Database **");
                 }
             }
         } catch (Exception e) {
@@ -105,6 +115,31 @@ public class App
         }
         rs.close();
         stmt.close();
+    }
+
+    // TODO Test this code works for getting updates from the database
+    private static boolean requireUpdatesFromDatabase(Connection conn) throws SQLException
+    {
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT * FROM iot");
+        ArrayList<String> bleDevices = new ArrayList<>();
+        while (rs.next()) {
+            String bleDevice = rs.getString("name");
+            if (!bleDeviceNames.containsKey(bleDevice)) {
+                rs.close();
+                stmt.close();
+                return true;
+            }
+            bleDevices.add(bleDevice);
+        }
+        if (bleDevices.size() != bleDeviceNames.size()) {
+            rs.close();
+            stmt.close();
+            return true;
+        }
+        rs.close();
+        stmt.close();
+        return false;
     }
 
     private static Light getLight() throws IOException
