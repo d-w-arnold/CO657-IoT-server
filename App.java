@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.net.URLConnection;
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Set;
@@ -26,21 +27,25 @@ public class App
     private static HashMap<String, Light> living_roomMap = new HashMap<>();
     private static HashMap<String, Light> bedroomMap = new HashMap<>();
     private static HashMap<String, Light> kitchenMap = new HashMap<>();
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("(dd/MM/yyyy) HH:mm:ss");
 
     public static void main(String[] args) throws SQLException, IOException
     {
-        // Serial Port Setup
+        // Serial Comm Port Setup
         SerialPort commPort = SerialPort.getCommPort(commPortPath);
         commPort.setBaudRate(baudRate);
         commPort.openPort();
         commPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, 0, 0);
+        System.out.println("** Serial Comm Port Setup Complete **");
 
         // JDBC connection to my MySQL database
         Connection conn = connectToDatabase();
+        System.out.println("** Connected to Database **");
 
         // SELECT * FROM iot
         assert conn != null;
         populateMaps(conn);
+        System.out.println("** BLE Device Info retrieved from Database **");
 
         // Send all BLE Device MAC addresses and BLE Device Names
         Set<String> bleDevices = bleDeviceNames.keySet();
@@ -48,12 +53,16 @@ public class App
             String bleDeviceInfoToSend = bleDevice + "+" + bleDeviceNames.get(bleDevice) + "*";
             commPort.writeBytes(bleDeviceInfoToSend.getBytes(), bleDeviceInfoToSend.length());
         }
+        System.out.println("** Sent BLE Device Info to IoT Device **");
 
         // Reading from Serial Port
         try (BufferedReader in = new BufferedReader(new InputStreamReader(commPort.getInputStream()))) {
             Light currentState = getLight();
             while (true) {
                 String bleMACAddress = in.readLine();
+                System.out.println("\nIoT Device has detected the BLE Device: " + bleMACAddress);
+                String timestamp = sdf.format(new Timestamp(System.currentTimeMillis()));
+                System.out.println(timestamp + " - Welcome home! " + bleDeviceNames.get(bleMACAddress));
                 if (Objects.equals(currentState, Light.OFF)) {
                     if (!Objects.equals(currentState, living_roomMap.get(bleMACAddress))) {
                         currentState = setLight(Light.TOGGLE);
@@ -78,7 +87,7 @@ public class App
             String url = "jdbc:mysql://dragon.kent.ac.uk:3306/dwa4"; // Step 2: Establish the connection to the database
             return DriverManager.getConnection(url, "dwa4", "i9sipin");
         } catch (Exception e) {
-            System.err.println("** Cannot connect to database **");
+            System.err.println("** Cannot connect to Database **");
         }
         return null;
     }
