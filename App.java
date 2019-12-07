@@ -31,6 +31,7 @@ public class App
     private static HashMap<String, Light> living_roomMap = new HashMap<>();
     private static HashMap<String, Light> bedroomMap = new HashMap<>();
     private static HashMap<String, Light> kitchenMap = new HashMap<>();
+    private static boolean ack = false; // IoT device having acknowledged receiving of database info
 
     public static void main(String[] args) throws SQLException, IOException
     {
@@ -50,27 +51,45 @@ public class App
         populateMaps(conn);
         System.out.println("** BLE Device Info retrieved from Database **");
 
-        // Send all BLE Device MAC addresses and BLE Device Names
-        Set<String> bleDevices = bleDeviceNames.keySet();
-        for (String bleDevice : bleDevices) {
-            String bleDeviceInfoToSend = bleDevice + "+" + bleDeviceNames.get(bleDevice) + "*";
-            commPort.writeBytes(bleDeviceInfoToSend.getBytes(), bleDeviceInfoToSend.length());
-        }
-        System.out.println("** Sent BLE Device Info to IoT Device **");
-
-        // Reading from Serial Port
+        // Reading from Serial Port TODO Test this works with the IoT Device
         try (BufferedReader in = new BufferedReader(new InputStreamReader(commPort.getInputStream()))) {
             Light currentState = getLight();
+            int count = 0;
             while (true) {
                 try {
-                    String bleMACAddress = in.readLine();
-                    System.out.println("\nIoT Device has detected the BLE Device: " + bleMACAddress);
-                    String timestamp = sdf.format(new Timestamp(System.currentTimeMillis()));
-                    System.out.println(timestamp + " - Welcome home! " + bleDeviceNames.get(bleMACAddress));
-                    if (Objects.equals(currentState, Light.OFF)) {
-                        if (!Objects.equals(currentState, living_roomMap.get(bleMACAddress))) {
-                            currentState = setLight(Light.TOGGLE);
+                    if (in.readLine().contains("info") || count > 3) {
+                        // Send all BLE Device MAC Addresses and BLE Device Names
+                        ack = false;
+                        count = 0;
+                        Set<String> bleDevices = bleDeviceNames.keySet();
+                        for (String bleDevice : bleDevices) {
+                            String bleDeviceInfoToSend = bleDevice + "+" + bleDeviceNames.get(bleDevice) + "*";
+                            commPort.writeBytes(bleDeviceInfoToSend.getBytes(), bleDeviceInfoToSend.length());
                         }
+                        System.out.println("** Sent BLE Device Info to IoT Device **");
+                    } else if (in.readLine().contains("ack")) {
+                        // Receiving an ACK from the IoT Device
+                        ack = true;
+                        System.out.println("** IoT Device ACK received **");
+                    } else if (ack) {
+                        // IoT Device sending BLE MAC Address
+                        String bleMACAddress = in.readLine();
+                        // Send ACK to IoT Device that BLE MAC Address has been received
+                        String ackString = "ack+";
+                        commPort.writeBytes(ackString.getBytes(), ackString.length());
+                        // Detected BLE Device
+                        System.out.println("\nIoT Device has detected the BLE Device: " + bleMACAddress);
+                        String timestamp = sdf.format(new Timestamp(System.currentTimeMillis()));
+                        System.out.println(timestamp + " - Welcome home! " + bleDeviceNames.get(bleMACAddress));
+                        // Smart Home Lights
+                        if (Objects.equals(currentState, Light.OFF)) {
+                            if (!Objects.equals(currentState, living_roomMap.get(bleMACAddress))) {
+                                currentState = setLight(Light.TOGGLE);
+                            }
+                        }
+                    } else {
+                        // Ack not received
+                        count++;
                     }
                 } catch (SerialPortTimeoutException se) {
                 }
