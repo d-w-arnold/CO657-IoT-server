@@ -4,5 +4,5 @@ A Central Server, receives input from my IoT device over Serial, pulls BLE devic
 
 Other libraries imported using Maven:
 
-- com.fazecast:jSerialComm:2.5.22
-- mysql:mysql-connector-java:8.0.182
+- [com.fazecast:jSerialComm:2.5.22](https://mvnrepository.com/artifact/com.fazecast/jSerialComm)
+- [mysql:mysql-connector-java:8.0.182](https://mvnrepository.com/artifact/mysql/mysql-connector-java)
