@@ -1,6 +1,6 @@
 # CO657-IoT_Server
 
-A Central Server for my IoT system, to work with my [IoT device](https://github.com/d-w-arnold/CO657-IoT_Device){target="_blank"}.
+A Central Server for my IoT system, to work with my <a href="https://github.com/d-w-arnold/CO657-IoT_Device/" target="_blank">IoT device</a>.
 
 Receives input from my IoT device over Serial, detailing the BLE MAC address of a BLE device just come home.
 
