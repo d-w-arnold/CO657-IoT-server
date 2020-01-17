@@ -6,6 +6,8 @@ Receives input from my IoT device over Serial, detailing the BLE MAC address of 
 
 Pulls BLE device information from a database, storing the information locally and periodically checking for updates in the database.
 
+BLE device information (stored in a database) can be created, viewed, updated, and deleted all from my <a href="https://github.com/d-w-arnold/CO657-IoT_Admin_Web_App/" target="_blank">IoT admin web app</a>.
+
 When input is received over Serial from the IoT device, the IoT server toggles the living room smart home light (according to the information for the given BLE device obtained from the database).
 
 ---
