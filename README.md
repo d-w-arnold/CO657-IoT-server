@@ -14,5 +14,5 @@ When input is received over Serial from the IoT device, the IoT server toggles t
 
 Libraries imported using Maven:
 
-- [com.fazecast:jSerialComm:2.5.22](https://mvnrepository.com/artifact/com.fazecast/jSerialComm)
+- [com.fazecast:jSerialComm:2.7.0](https://mvnrepository.com/artifact/com.fazecast/jSerialComm)
 - [mysql:mysql-connector-java:8.0.182](https://mvnrepository.com/artifact/mysql/mysql-connector-java)

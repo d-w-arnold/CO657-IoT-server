@@ -3,11 +3,11 @@ import com.fazecast.jSerialComm.SerialPortTimeoutException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.URLConnection;
-import java.net.UnknownHostException;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -24,30 +24,30 @@ import java.util.regex.Pattern;
  */
 public class App
 {
-    final private static int newReadTimeout = 3000;
-    final private static String lightIPAddress = "10.150.46.108";
-    final private static String apiKey = "70617373776f7264";
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("(dd/MM/yyyy) HH:mm:ss");
+    private static final int NEW_READ_TIMEOUT = 3000;
+    private static final String LIGHT_IP_ADDRESS = "10.150.46.108";
+    private static final String API_KEY = "70617373776f7264";
+    private static final SimpleDateFormat SIMPLE_DATE_FORMAT = new SimpleDateFormat("(dd/MM/yyyy) HH:mm:ss");
     private static final Pattern VALID_IPV6_PATTERN = Pattern.compile("[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]", Pattern.CASE_INSENSITIVE);
     // Zigbee
-    final private static int baudRate = 9600;
-    final private static String commPortPath = "/dev/tty.usbserial-A9Z2T81O";
+    private static final int BAUD_RATE = 9600;
+    private static final String COMM_PORT_PATH = "/dev/tty.usbserial-A9Z2T81O";
     // Direct, no Zigbee
-//    final private static int baudRate = 115200;
-//    final private static String commPortPath = "/dev/tty.usbserial-1410";
-    private static HashMap<String, String> bleDeviceNames = new HashMap<>();
-    private static HashMap<String, Light> living_roomMap = new HashMap<>();
-    private static HashMap<String, Light> bedroomMap = new HashMap<>();
-    private static HashMap<String, Light> kitchenMap = new HashMap<>();
+    // private static final int baudRate = 115200;
+    // private static final String commPortPath = "/dev/tty.usbserial-1410";
+    private static final HashMap<String, String> BLE_DEVICE_NAMES = new HashMap<>();
+    private static final HashMap<String, Light> LIVING_ROOM_MAP = new HashMap<>();
+    private static final HashMap<String, Light> BEDROOM_MAP = new HashMap<>();
+    private static final HashMap<String, Light> KITCHEN_MAP = new HashMap<>();
     private static boolean infoSent = false;
 
-    public static void main(String[] args) throws SQLException, IOException
+    public static void main(String[] args) throws SQLException
     {
         // Serial Comm Port Setup
-        SerialPort commPort = SerialPort.getCommPort(commPortPath);
-        commPort.setBaudRate(baudRate);
+        SerialPort commPort = SerialPort.getCommPort(COMM_PORT_PATH);
+        commPort.setBaudRate(BAUD_RATE);
         commPort.openPort();
-        commPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, newReadTimeout, 0);
+        commPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, NEW_READ_TIMEOUT, 0);
         System.out.println("** Serial Comm Port Setup Complete **");
 
         // JDBC connection to my MySQL database
@@ -79,18 +79,18 @@ public class App
                             bleMACAddress = checkIsIPv6MACAddress(readLine);
                             if (!bleMACAddress.equals("")) {
                                 System.out.println("\nIoT Device has detected the BLE Device: " + bleMACAddress);
-                                String timestamp = sdf.format(new Timestamp(System.currentTimeMillis()));
-                                System.out.println(timestamp + " - Welcome home! " + bleDeviceNames.get(bleMACAddress));
+                                String timestamp = SIMPLE_DATE_FORMAT.format(new Timestamp(System.currentTimeMillis()));
+                                System.out.println(timestamp + " - Welcome home! " + BLE_DEVICE_NAMES.get(bleMACAddress));
                                 try {
-                                    if (sendPingRequest(lightIPAddress)) {
+                                    if (sendPingRequest()) {
                                         Light currentState = getLight();
                                         if (Objects.equals(currentState, Light.OFF)) {
-                                            if (!Objects.equals(currentState, living_roomMap.get(bleMACAddress))) {
+                                            if (!Objects.equals(currentState, LIVING_ROOM_MAP.get(bleMACAddress))) {
                                                 setLight(Light.TOGGLE);
                                             }
                                         }
                                     }
-                                } catch (IOException e) {
+                                } catch (IOException ignored) {
                                 }
                             }
                         }
@@ -118,8 +118,8 @@ public class App
 
     private static void sendAll(SerialPort commPort)
     {
-        for (String bleDevice : bleDeviceNames.keySet()) {
-            String bleDeviceInfoToSend = bleDevice + "+" + bleDeviceNames.get(bleDevice) + "*";
+        for (String bleDevice : BLE_DEVICE_NAMES.keySet()) {
+            String bleDeviceInfoToSend = bleDevice + "+" + BLE_DEVICE_NAMES.get(bleDevice) + "*";
             commPort.writeBytes(bleDeviceInfoToSend.getBytes(), bleDeviceInfoToSend.length());
             try {
                 Thread.sleep(500);
@@ -148,8 +148,10 @@ public class App
     private static Connection connectToDatabase()
     {
         try {
-            Class.forName("com.mysql.cj.jdbc.Driver").newInstance(); // Step 1: "Load" the JDBC driver
-            String url = "jdbc:mysql://dragon.kent.ac.uk:3306/dwa4"; // Step 2: Establish the connection to the database
+            // Step 1: "Load" the JDBC driver
+            Class.forName("com.mysql.cj.jdbc.Driver").getDeclaredConstructor().newInstance();
+            // Step 2: Establish the connection to the database
+            String url = "jdbc:mysql://dragon.kent.ac.uk:3306/dwa4";
             Connection conn = DriverManager.getConnection(url, "dwa4", "i9sipin");
             System.out.println("** Connected to Database **");
             return conn;
@@ -166,20 +168,20 @@ public class App
         ResultSet rs = stmt.executeQuery("SELECT * FROM iot");
         while (rs.next()) {
             String bleMacAddress = rs.getString("mac");
-            bleDeviceNames.put(bleMacAddress, rs.getString("name"));
-            living_roomMap.put(bleMacAddress, Light.values()[rs.getInt("living_room")]);
-            bedroomMap.put(bleMacAddress, Light.values()[rs.getInt("bedroom")]);
-            kitchenMap.put(bleMacAddress, Light.values()[rs.getInt("kitchen")]);
+            BLE_DEVICE_NAMES.put(bleMacAddress, rs.getString("name"));
+            LIVING_ROOM_MAP.put(bleMacAddress, Light.values()[rs.getInt("living_room")]);
+            BEDROOM_MAP.put(bleMacAddress, Light.values()[rs.getInt("bedroom")]);
+            KITCHEN_MAP.put(bleMacAddress, Light.values()[rs.getInt("kitchen")]);
         }
         rs.close();
         stmt.close();
     }
 
     // Sends ping request to a provided IP address
-    private static boolean sendPingRequest(String ipAddress) throws UnknownHostException, IOException
+    private static boolean sendPingRequest() throws IOException
     {
-        InetAddress geek = InetAddress.getByName(ipAddress);
-        System.out.println("Sending Ping request to smart home light: " + ipAddress);
+        InetAddress geek = InetAddress.getByName(App.LIGHT_IP_ADDRESS);
+        System.out.println("Sending Ping request to smart home light: " + App.LIGHT_IP_ADDRESS);
         if (geek.isReachable(2000)) {
             System.out.println("Smart home light is reachable\n");
             return true;
@@ -196,14 +198,14 @@ public class App
         ArrayList<String> bleDevices = new ArrayList<>();
         while (rs.next()) {
             String bleDevice = rs.getString("mac");
-            if (!bleDeviceNames.containsKey(bleDevice)) {
+            if (!BLE_DEVICE_NAMES.containsKey(bleDevice)) {
                 rs.close();
                 stmt.close();
                 return true;
             }
             bleDevices.add(bleDevice);
         }
-        if (bleDevices.size() != bleDeviceNames.size()) {
+        if (bleDevices.size() != BLE_DEVICE_NAMES.size()) {
             rs.close();
             stmt.close();
             return true;
@@ -215,42 +217,36 @@ public class App
 
     private static void emptyMaps()
     {
-        bleDeviceNames.clear();
-        living_roomMap.clear();
-        bedroomMap.clear();
-        kitchenMap.clear();
+        BLE_DEVICE_NAMES.clear();
+        LIVING_ROOM_MAP.clear();
+        BEDROOM_MAP.clear();
+        KITCHEN_MAP.clear();
     }
 
     private static Light getLight() throws IOException
     {
-        URL url = new URL("http://10.150.46.108/api/relay/0?apikey=70617373776f7264");
+        URL url = new URL("http://10.150.46.108/api/relay/0?apikey=70617373776f7264"); // The Shed smart light URL
         URLConnection yc = url.openConnection();
-        int res = -1;
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(yc.getInputStream()))) {
-            String line;
-            while ((line = in.readLine()) != null) {
-                try {
-                    res = Integer.parseInt(line);
-                } catch (NumberFormatException ex) {
-                    ex.printStackTrace();
-                }
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+        int res = getResponse(yc.getInputStream());
         return res < 0 ? null : Light.values()[res];
     }
 
-    private static Light setLight(Light value) throws IOException
+    private static void setLight(Light value) throws IOException
     {
         // curl -X PUT -H "Accept: application/json" http://10.150.46.108/api/relay/0 --data "apikey=70617373776f7264&value=2"
-        String parameters = "apikey=" + apiKey + "&" + "value=" + value.ordinal();
-        String url = "http://" + lightIPAddress + "/api/relay/0";
+        String parameters = "apikey=" + API_KEY + "&" + "value=" + value.ordinal();
+        String url = "http://" + LIGHT_IP_ADDRESS + "/api/relay/0";
         String[] command = {"curl", "-X", "PUT", "H", "Accept: application/json", url, "--data", parameters};
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         Process process = processBuilder.start();
+        getResponse(process.getInputStream());
+        process.destroy();
+    }
+
+    private static int getResponse(InputStream inputStream)
+    {
         int res = -1;
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(inputStream))) {
             String line;
             while ((line = in.readLine()) != null) {
                 try {
@@ -262,8 +258,7 @@ public class App
         } catch (IOException ex) {
             ex.printStackTrace();
         }
-        process.destroy();
-        return res < 0 ? null : Light.values()[res];
+        return res;
     }
 
     public enum Light
